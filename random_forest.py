@@ -4,7 +4,6 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-import time
 
 car_hacking_df = pd.read_csv('/content/car_hacking_data/DoS_dataset.csv',
                                               names=['Timestamp', 'CAN_ID', 'DLC', 'D0', 
@@ -42,14 +41,13 @@ pca = PCA(n_components=2)
 
 principal_components = pca.fit_transform(X_train)
 rnd_frcl = RandomForestClassifier(n_estimators=100, random_state=42)
-t0 = time.time()
 rnd_frcl.fit(X_train_reduced, y_train)
-t1 = time.time()
 
-print(f'Training took {t1 - t0}s')
-
+feat_labels = car_hacking_df.columns[1:]
 importances = rnd_frcl.feature_importances_
 indices = np.argsort(importances)[::-1]
 
 for f in range(X_train.shape[1]):
-    print(f'{f+1}) ')
+    print("%2d) %-*s %f" % (f + 1, 30,
+                            feat_labels[indices[f]],
+                            importances[indices[f]]))
