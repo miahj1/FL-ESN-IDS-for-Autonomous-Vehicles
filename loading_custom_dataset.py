@@ -3,6 +3,7 @@ import syft as sy
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from sklearn import preprocessing
+from auto_esn.esn.esn import ESNBase
 
 class CarHackingDataset(Dataset):
     """
@@ -111,3 +112,5 @@ def train(args, model, device, train_loader, optimizer, epoch):
 
         data, target = data.to(device), target.to(device)
         
+
+model = ESNBase().to(device)
