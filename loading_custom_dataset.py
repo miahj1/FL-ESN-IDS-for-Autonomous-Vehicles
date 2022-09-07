@@ -5,6 +5,10 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 from auto_esn.esn.esn import ESNBase
+import torch.nn.functional as F
+import torch.optim as optim
+from auto_esn.esn.esn import GroupedDeepESN
+from auto_esn.esn.reservoir.util import NRMSELoss
 
 class CarHackingDataset(Dataset):
     """
@@ -17,7 +21,7 @@ class CarHackingDataset(Dataset):
         transform (callable, optional): Optional tansform to be applied on a sample.
     """
     def __init__(self, csv_file: str, root_dir: str, transform=None):
-        self.car_hacking_frame = pd.read_csv(csv_file)[:1000]
+        self.car_hacking_frame = pd.read_csv(csv_file)[:10000]
         self.root_dir = root_dir
         self.transform = transform
 
@@ -81,7 +85,7 @@ class ValidationDataset(Dataset):
     def __len__(self):
         return len(self.clean_validation_frame)
 
-train_dataset = CarHackingDataset(csv_file='/content/car_hacking_data/modded_fuzzy_dataset.csv', 
+train_dataset = CarHackingDataset(csv_file='/content/car_hacking_data/flt_cid_modded_fuzzy_dataset.csv', 
                                   root_dir='/content/car_hacking_data')
 
 
@@ -110,13 +114,37 @@ car2 = sy.VirtualWorker(hook, id="car2")
 federated_train_loader = sy.FederatedDataLoader(train_dataset.federate((car1, car2)),
                                                 batch_size=32, shuffle=True)
 
-def train(args, model, device, train_loader, optimizer, epoch):
+# Intializing the loss function.
+nrmse = NRMSELoss()
+
+def train(model, device, train_loader, optimizer, epoch):
     model.train()
 
     for batch_idx, (data, target) in enumerate(train_loader):
         model = model.send(data.location)
 
         data, target = data.to(device), target.to(device)
-        
+        optimizer.zero_grad()
+        output = model(data)
 
-model = ESNBase().to(device)
+        loss = nrmse(output, target)
+        loss.backward()
+        optimizer.step()
+        model.get()
+
+        if batch_idx % 10 == 0:
+            loss = loss.get()
+
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    epoch,
+                    batch_idx * 64,
+                    len(train_loader) * 64,
+                    100. * batch_idx / len(train_loader),
+                    loss.item())
+                 )
+
+model = GroupedDeepESN().to(device)
+optimizer = optim.SGD(model.parameters(), lr=0.01)
+
+for epoch in range(1, 1+1):
+    train(model, device, federated_train_loader, optimizer, epoch)
