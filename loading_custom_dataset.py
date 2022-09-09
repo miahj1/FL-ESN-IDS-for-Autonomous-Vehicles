@@ -35,7 +35,7 @@ class CarHackingDataset(Dataset):
         X_train_scaled = StandardScaler().fit_transform(X_train)
         X_train_scaled = torch.as_tensor(X_train_scaled)
 
-        # It looks it's a bad idea to to encode features.
+        # It looks like it's a bad idea to encode features.
         # https://stackoverflow.com/questions/61217713/labelencoder-for-categorical-features
 
         class_le = LabelEncoder()
