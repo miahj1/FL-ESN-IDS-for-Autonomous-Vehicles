@@ -32,8 +32,8 @@ class CarHackingDataset(Dataset):
 
         features = ['Timestamp', 'DLC', 'CAN_ID', 'Data']
         X_train = self.car_hacking_frame.loc[:, features].values
-        X_train_reduced = StandardScaler().fit_transform(X_train)
-        X_train_reduced = torch.as_tensor(X_train_reduced)
+        X_train_scaled = StandardScaler().fit_transform(X_train)
+        X_train_scaled = torch.as_tensor(X_train_scaled)
 
         # It looks it's a bad idea to to encode features.
         # https://stackoverflow.com/questions/61217713/labelencoder-for-categorical-features
@@ -42,7 +42,7 @@ class CarHackingDataset(Dataset):
         target = class_le.fit_transform(self.car_hacking_frame['Flag'].values)
         target = torch.as_tensor(target)
 
-        return X_train_reduced[idx], target[idx]
+        return X_train_scaled[idx], target[idx]
             
     def __len__(self):
         return len(self.car_hacking_frame)
