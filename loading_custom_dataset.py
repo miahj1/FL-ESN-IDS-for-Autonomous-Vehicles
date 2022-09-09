@@ -4,7 +4,6 @@ import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
-from auto_esn.esn.esn import ESNBase
 import torch.nn.functional as F
 import torch.optim as optim
 from auto_esn.esn.esn import GroupedDeepESN
@@ -85,17 +84,11 @@ class ValidationDataset(Dataset):
     def __len__(self):
         return len(self.clean_validation_frame)
 
-train_dataset = CarHackingDataset(csv_file='/content/car_hacking_data/flt_cid_modded_fuzzy_dataset.csv', 
+train_dataset = CarHackingDataset(csv_file='/content/car_hacking_data/clean_fuzzy_dataset.csv', 
                                   root_dir='/content/car_hacking_data')
 
 test_dataset = ValidationDataset(txt_file='/content/car_hacking_data/normal_run_data.txt', 
                                  root_dir='/content/car_hacking_data')
-
-test_loader = DataLoader(dataset=train_dataset,
-                                 batch_size=32,
-                                 drop_last=True,
-                                 shuffle=True)
-
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -104,10 +97,20 @@ hook = sy.TorchHook(torch)
 car1 = sy.VirtualWorker(hook, id="car1")
 car2 = sy.VirtualWorker(hook, id="car2")
 
-federated_train_loader = sy.FederatedDataLoader(train_dataset.federate((car1, car2)),
-                                                batch_size=32, shuffle=True)
+args = {
+    'batch_size' : 32,
+    'epochs' : 1
+}
 
-# Intializing the loss function.
+federated_train_loader = sy.FederatedDataLoader(train_dataset.federate((car1, car2)),
+                                                batch_size=args['batch_size'], shuffle=True)
+
+test_loader = DataLoader(dataset=train_dataset,
+                                 batch_size=args['batch_size'],
+                                 drop_last=True,
+                                 shuffle=True)
+
+# Intializing the loss function which is probably a variation of mean squared error.
 nrmse = NRMSELoss()
 
 def train(model, device, federated_train_loader, optimizer, epoch):
@@ -128,11 +131,11 @@ def train(model, device, federated_train_loader, optimizer, epoch):
         if batch_idx % 10 == 0:
             loss = loss.get()
 
-            print(f'''Train Epoch: {epoch} [{(batch_idx * 32)}/{(len(federated_train_loader) * 32)} '''
+            print(f'''Train Epoch: {epoch} [{(batch_idx * args['batch_size'])}/{(len(federated_train_loader) * args['batch_size'])}'''
                    + f'''({100. * batch_idx / len(federated_train_loader):.0f}%)]\tLoss: {loss.item():.6f}''')
 
 model = GroupedDeepESN().to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
-for epoch in range(1, 1+1):
+for epoch in range(1, args['batch_size'] + 1):
     train(model, device, federated_train_loader, optimizer, epoch)
