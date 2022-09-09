@@ -88,12 +88,6 @@ class ValidationDataset(Dataset):
 train_dataset = CarHackingDataset(csv_file='/content/car_hacking_data/flt_cid_modded_fuzzy_dataset.csv', 
                                   root_dir='/content/car_hacking_data')
 
-
-train_loader = DataLoader(dataset=train_dataset,
-                                 batch_size=32,
-                                 drop_last=True,
-                                 shuffle=True)
-
 test_dataset = ValidationDataset(txt_file='/content/car_hacking_data/normal_run_data.txt', 
                                  root_dir='/content/car_hacking_data')
 
@@ -104,7 +98,6 @@ test_loader = DataLoader(dataset=train_dataset,
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 hook = sy.TorchHook(torch)
 
@@ -117,10 +110,10 @@ federated_train_loader = sy.FederatedDataLoader(train_dataset.federate((car1, ca
 # Intializing the loss function.
 nrmse = NRMSELoss()
 
-def train(model, device, train_loader, optimizer, epoch):
+def train(model, device, federated_train_loader, optimizer, epoch):
     model.train()
 
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for batch_idx, (data, target) in enumerate(federated_train_loader):
         model = model.send(data.location)
 
         data, target = data.to(device), target.to(device)
@@ -135,13 +128,8 @@ def train(model, device, train_loader, optimizer, epoch):
         if batch_idx % 10 == 0:
             loss = loss.get()
 
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    epoch,
-                    batch_idx * 64,
-                    len(train_loader) * 64,
-                    100. * batch_idx / len(train_loader),
-                    loss.item())
-                 )
+            print(f'''Train Epoch: {epoch} [{(batch_idx * 32)}/{(len(federated_train_loader) * 32)} '''
+                   + f'''({100. * batch_idx / len(federated_train_loader):.0f}%)]\tLoss: {loss.item():.6f}''')
 
 model = GroupedDeepESN().to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
