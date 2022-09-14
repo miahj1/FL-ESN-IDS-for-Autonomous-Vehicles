@@ -111,6 +111,7 @@ test_loader = DataLoader(dataset=train_dataset,
                                  shuffle=True)
 
 # Intializing the loss function which is probably a variation of mean squared error.
+# This loss function may not be good for classification.
 nrmse = NRMSELoss()
 
 def train(model, device, federated_train_loader, optimizer, epoch):
