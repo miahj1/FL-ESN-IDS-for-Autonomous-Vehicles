@@ -6,7 +6,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 import torch.nn.functional as F
 import torch.optim as optim
-from auto_esn.esn.esn import GroupedDeepESN
+from auto_esn.esn.esn import DeepESN
 from auto_esn.esn.reservoir.util import NRMSELoss
 
 class CarHackingDataset(Dataset):
@@ -103,7 +103,7 @@ args = {
 }
 
 federated_train_loader = sy.FederatedDataLoader(train_dataset.federate((car1, car2)),
-                                                batch_size=args['batch_size'], shuffle=True)
+                                                batch_size=args['batch_size'], shuffle=True, drop_last=True)
 
 test_loader = DataLoader(dataset=train_dataset,
                                  batch_size=args['batch_size'],
@@ -120,7 +120,7 @@ def train(model, device, federated_train_loader, optimizer, epoch):
     for batch_idx, (data, target) in enumerate(federated_train_loader):
         model = model.send(data.location)
 
-        data, target = data.to(device), target.to(device)
+        data, target = data.reshape(args['batch_size'], 4, -1).to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
 
@@ -135,7 +135,7 @@ def train(model, device, federated_train_loader, optimizer, epoch):
             print(f'''Train Epoch: {epoch} [{(batch_idx * args['batch_size'])}/{(len(federated_train_loader) * args['batch_size'])}'''
                    + f'''({100. * batch_idx / len(federated_train_loader):.0f}%)]\tLoss: {loss.item():.6f}''')
 
-model = GroupedDeepESN().to(device)
+model = DeepESN().to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 for epoch in range(1, args['batch_size'] + 1):
