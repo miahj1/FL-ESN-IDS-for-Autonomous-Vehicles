@@ -53,7 +53,7 @@ class ValidationDataset(Dataset):
             idx = idx.tolist()
 
         features = ['Timestamp', 'DLC', 'CAN_ID', 'Data']
-        X_train = self.car_hacking_frame.loc[:, features].values
+        X_train = self.validation_frame.loc[:, features].values
         X_train = torch.as_tensor(X_train)
 
         return X_train[idx]
@@ -138,5 +138,6 @@ optimizer = optim.SGD(model.parameters(), lr=0.01)
 t0 = time.time()
 for epoch in range(1, args['batch_size'] + 1):
     train(model, device, federated_train_loader, optimizer, epoch)
+    test(model, device, test_loader)
 t1 = time.time()
 print(f'Training took {t1 - t0}s')
