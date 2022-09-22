@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from auto_esn.esn.esn import DeepESN
 from auto_esn.esn.reservoir.util import NRMSELoss
+import time
 
 class CarHackingDataset(Dataset):
     """
@@ -20,7 +21,7 @@ class CarHackingDataset(Dataset):
         transform (callable, optional): Optional tansform to be applied on a sample.
     """
     def __init__(self, csv_file: str, root_dir: str, transform=None):
-        self.car_hacking_frame = pd.read_csv(csv_file)[:10000]
+        self.car_hacking_frame = pd.read_csv(csv_file)
         self.root_dir = root_dir
         self.transform = transform
 
@@ -31,63 +32,39 @@ class CarHackingDataset(Dataset):
 
         features = ['Timestamp', 'DLC', 'CAN_ID', 'Data']
         X_train = self.car_hacking_frame.loc[:, features].values
-        X_train_scaled = StandardScaler().fit_transform(X_train)
-        X_train_scaled = torch.as_tensor(X_train_scaled)
+        X_train = torch.as_tensor(X_train)
 
         # It looks like it's a bad idea to encode features.
         # https://stackoverflow.com/questions/61217713/labelencoder-for-categorical-features
 
-        class_le = LabelEncoder()
-        target = class_le.fit_transform(self.car_hacking_frame['Flag'].values)
-        target = torch.as_tensor(target)
-
-        return X_train_scaled[idx], target[idx]
+        return X_train[idx], self.car_hacking_frame['Flag'].iloc[idx]
             
     def __len__(self):
         return len(self.car_hacking_frame)
 
 
 class ValidationDataset(Dataset):
-    def __init__(self, txt_file: str, root_dir: str):
-        self.validation_frame = pd.read_csv(txt_file, sep='\s+', header=None,
-                                    names = ['TS_Dupe', 'Timestamp', 'ID_Dupe', 
-                                    'CAN_ID', 'Floating Point', 'DLC', 'DLC_Dupe',
-                                    'D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7'])
-        self.clean_validation_frame = self.validation_frame.drop(columns=['TS_Dupe', 
-                                                                          'ID_Dupe', 
-                                                                          'Floating Point', 
-                                                                          'DLC', 
-                                                                          'DLC_Dupe'])
-        self.clean_validation_frame['Data'] = (self.clean_validation_frame['D0'].astype(str) + 
-                                               self.clean_validation_frame['D1'].astype(str) + 
-                                               self.clean_validation_frame['D3'].astype(str) + 
-                                               self.clean_validation_frame['D4'].astype(str) +
-                                               self.clean_validation_frame['D5'].astype(str) + 
-                                               self.clean_validation_frame['D6'].astype(str) +
-                                               self.clean_validation_frame['D7'].astype(str))
+    def __init__(self, csv_file: str, root_dir: str):
+        self.validation_frame = pd.read_csv(csv_file)
 
     def __getitem__(self, idx):
         '''Grabs relevant features from the dataset.'''
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        ts = str(self.clean_validation_frame['Timestamp'].iloc[idx])
-        cid = str(self.clean_validation_frame['CAN_ID'].iloc[idx])
-        data = self.clean_validation_frame['Data'].iloc[idx]
+        features = ['Timestamp', 'DLC', 'CAN_ID', 'Data']
+        X_train = self.car_hacking_frame.loc[:, features].values
+        X_train = torch.as_tensor(X_train)
 
-        le = LabelEncoder()
-        targets = le.fit_transform((ts, cid, data))
-        targets = torch.as_tensor(targets)
-
-        return targets
+        return X_train[idx]
 
     def __len__(self):
-        return len(self.clean_validation_frame)
+        return len(self.validation_frame)
 
-train_dataset = CarHackingDataset(csv_file='/content/car_hacking_data/clean_fuzzy_dataset.csv', 
+train_dataset = CarHackingDataset(csv_file='/content/car_hacking_data/balanced_fuzzy_dataset.csv', 
                                   root_dir='/content/car_hacking_data')
 
-test_dataset = ValidationDataset(txt_file='/content/car_hacking_data/normal_run_data.txt', 
+test_dataset = ValidationDataset(csv_file='/content/car_hacking_data/clean_scaled_normal_run.csv', 
                                  root_dir='/content/car_hacking_data')
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -98,7 +75,7 @@ car1 = sy.VirtualWorker(hook, id="car1")
 car2 = sy.VirtualWorker(hook, id="car2")
 
 args = {
-    'batch_size' : 32,
+    'batch_size' : 13084,
     'epochs' : 1
 }
 
@@ -135,8 +112,31 @@ def train(model, device, federated_train_loader, optimizer, epoch):
             print(f'''Train Epoch: {epoch} [{(batch_idx * args['batch_size'])}/{(len(federated_train_loader) * args['batch_size'])}'''
                    + f'''({100. * batch_idx / len(federated_train_loader):.0f}%)]\tLoss: {loss.item():.6f}''')
 
+def test(model, device, test_loader):
+    model.eval()
+
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data)
+
+            test_loss += F.nll_loss(output, target, reduction='sum').item()
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target.view_as(pred)).sum().item()
+
+    test_loss /= len(test_loader.dataset)
+
+    print("\n Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+          test_loss, correct, len(test_loader.dataset),
+          100. * correct/len(test_loader.dataset)))
+
 model = DeepESN().to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
+t0 = time.time()
 for epoch in range(1, args['batch_size'] + 1):
     train(model, device, federated_train_loader, optimizer, epoch)
+t1 = time.time()
+print(f'Training took {t1 - t0}s')
