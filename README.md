@@ -5,4 +5,4 @@ The project uses datasets from these two places:
 1. [Car Hacking](https://ocslab.hksecurity.net/Datasets/car-hacking-dataset) which consists of five files such as `DoS_dataset.csv`, `Fuzzy_dataset.csv`, `gear_dataset.csv`, `RPM_dataset.csv`, and `normal_run_data.7z`.
 2. [CAN Intrusion](https://ocslab.hksecurity.net/Dataset/CAN-intrusion-dataset) which consists of four files such as `Attack_free_dataset.txt`, `DoS_attack_dataset.txt`, `Fuzzy_attack_dataset.txt`, and `Impersonation_attack_dataset.txt`.
 
-To gain access to these datasets, your e-mail and reasoning for them will have to be shared with the authors by using a google form.
+To gain access to these datasets, your e-mail and reasoning for wanting them will have to be shared with the authors by using a google form.
